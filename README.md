@@ -16,10 +16,11 @@ Restart Claude Code in that project and approve the project MCP servers when pro
 | retool | http | trajektsports.retool.com/mcp |
 | notion-trajekt | http | mcp.notion.com/mcp |
 | airtable | http | mcp.airtable.com/mcp |
-| n8n | http | your n8n cloud MCP endpoint |
+| n8n | http | trajektsports.app.n8n.cloud (production instance) |
+| figma | http | mcp.figma.com/mcp |
 | notion | stdio | needs `NOTION_TOKEN` |
-| trajekt-db | stdio | local read-only Mongo bridge; needs `BASTION_KEY_PATH` |
-| google-workspace | stdio | **replaces the claude.ai Google connectors** (Gmail/Calendar/Drive). Needs a Google Cloud OAuth client. Verify the `workspace-mcp` package name before first run. |
+| trajekt-db | stdio | local read-only Mongo bridge; needs `BASTION_KEY_PATH` (`~/.ssh/bastion.pem`) |
+| google-workspace | stdio | **replaces the claude.ai Google connectors** (Gmail/Calendar/Drive). Needs a Google Cloud OAuth client. Package `workspace-mcp` verified on PyPI (v1.25.0, 2026-08). |
 
 ## Replacing the Google connectors (one-time)
 1. Google Cloud Console → new project → enable Gmail, Calendar, Drive APIs.

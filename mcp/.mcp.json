@@ -3,9 +3,10 @@
     "retool":         { "type": "http", "url": "https://trajektsports.retool.com/mcp" },
     "notion-trajekt": { "type": "http", "url": "https://mcp.notion.com/mcp" },
     "airtable":       { "type": "http", "url": "https://mcp.airtable.com/mcp" },
-    "n8n":            { "type": "http", "url": "https://elliotsones.app.n8n.cloud/mcp-server/http" },
+    "n8n":            { "type": "http", "url": "https://trajektsports.app.n8n.cloud/mcp-server/http" },
+    "figma":          { "type": "http", "url": "https://mcp.figma.com/mcp" },
     "notion":         { "type": "stdio", "command": "npx", "args": ["-y", "@notionhq/notion-mcp-server"], "env": { "NOTION_TOKEN": "${NOTION_TOKEN}" } },
-    "trajekt-db":     { "type": "stdio", "command": "node", "args": ["/Users/elliot18/Desktop/Home/Projects/trajekt/trajekt-db-mcp/server/index.js"], "env": { "BASTION_KEY_PATH": "${BASTION_KEY_PATH}" } },
+    "trajekt-db":     { "type": "stdio", "command": "node", "args": ["/Users/elliot18/Projects/trajekt/trajekt-db-mcp/server/index.js"], "env": { "BASTION_KEY_PATH": "${BASTION_KEY_PATH}" } },
     "google-workspace": { "type": "stdio", "command": "uvx", "args": ["workspace-mcp"], "env": { "GOOGLE_OAUTH_CLIENT_ID": "${GOOGLE_OAUTH_CLIENT_ID}", "GOOGLE_OAUTH_CLIENT_SECRET": "${GOOGLE_OAUTH_CLIENT_SECRET}" } }
   }
 }
