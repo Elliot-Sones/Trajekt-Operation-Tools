@@ -1,2 +1,5 @@
 .env
 node_modules/
+last_run/
+__pycache__/
+*.pyc

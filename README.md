@@ -10,6 +10,11 @@ cp .env.example /path/to/project/.env          # then fill in real values (gitig
 ```
 Restart Claude Code in that project and approve the project MCP servers when prompted.
 
+## Skills
+| Skill | What it does |
+|---|---|
+| `field-docs-check` | Reports whether the **Trajekt_Dev Field Documentation** sheet and the **ERP Documentation Index** still match the live Airtable base (new / removed / renamed fields, type and option drift, Automations recomputed from the active n8n workflows, Forms proven from real Fillout submissions) and runs a **field-health** pass (empty / sparse / abandoned fields, wrong-looking values, duplicates, bad attachments, hygiene). Report first; the sheet refresh is a separate step that needs an explicit yes. Needs `FDC_DASH_DIR` (or the token env vars) — see `.env.example`. |
+
 ## MCP servers
 | Server | Type | Notes |
 |---|---|---|
