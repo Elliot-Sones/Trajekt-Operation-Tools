@@ -95,8 +95,15 @@ for t in tables:
                 if lbl=='numbers' and idlike: continue
                 k=sum(1 for v in strs if rx.match(v.strip()))
                 if k>=0.8*nf and k>=5: add(tn,nm,'🟡','typed-as-text',f"{pretty_pct(k,nf)} of values are {lbl} stored as text"); break
-            ws=sum(1 for v in strs if v!=v.strip() or '  ' in v)
-            if ws: add(tn,nm,'🟡','whitespace',f"{ws} values have leading/trailing or doubled spaces",ws)
+            if ty=='singleLineText':
+                ws=sum(1 for v in strs if v!=v.strip() or '  ' in v)
+            else:   # multi-line / rich text: Airtable returns rich text with one trailing newline, and markdown uses spaces deliberately
+                def _bad(v):
+                    body=v[:-1] if v.endswith('\n') else v
+                    if body!=body.lstrip() or body!=body.rstrip(): return True
+                    return any('  ' in ln.strip() for ln in body.split('\n'))
+                ws=sum(1 for v in strs if _bad(v))
+            if ws: add(tn,nm,'🟡','whitespace',f"{ws} values have leading/trailing whitespace or doubled spaces inside the text",ws)
             ph=sum(1 for v in strs if v.strip().lower() in PLACEHOLDER)
             if ph: add(tn,nm,'🟡','placeholder',f"{ph} placeholder values (n/a, tbd, test, -, …)",ph)
         if ty=='email':
