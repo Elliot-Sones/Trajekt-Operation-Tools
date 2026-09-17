@@ -183,7 +183,7 @@ from health_cells import cells_from, is_flagged
 CELLS=cells_from({'days':DAYS,'generated':NOW.isoformat(),'findings':findings,'fields':FSTAT})
 def health_cell(table,field): return CELLS.get(table,{}).get(field,'')
 if '--docs-preview' in sys.argv:
-    print('\n=== DOCS PREVIEW: the Health cell each field gets (only fields with a flag shown; every field gets the fill line)')
+    print('\n=== DOCS PREVIEW: the Health cell each field gets (only flagged fields shown; every other field gets ✅)')
     tot=0; flagged=0
     for t in tables:
         lines=[]
@@ -192,4 +192,4 @@ if '--docs-preview' in sys.argv:
             if is_flagged(c): flagged+=1; lines.append(f"    {f['name'][:36].ljust(36)} | "+c.replace('\n',' | '))
         if lines: print(f"  {t['name']} ({len(lines)} flagged of {len(t['fields'])})"); [print(l[:200]) for l in lines[:8]]; 
         if len(lines)>8: print(f"    … +{len(lines)-8} more")
-    print(f"\n{flagged} of {tot} fields carry a flag; the rest get just the fill count.")
+    print(f"\n{flagged} of {tot} fields carry a flag; the rest get ✅.")

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Write or refresh the Health column (column I) on every table tab of 'Trajekt_Dev Field Documentation'.
 Source: last_run/health.json (from health.py, or check.py --health). Touches ONLY column I: the header
-'Health (as of <date>)', one cell per field aligned to the tab's CURRENT 'Field name' rows, column width and
+'Health (as of <date>)', one cell per field (✅ or the 🔴/🟡 lines) aligned to the tab's CURRENT 'Field name' rows, column width and
 the format copied from column H (PASTE_FORMAT carries H's alternating-colour banding into I by itself; never add banding on top, Sheets rejects overlaps). Other columns are never read for writing, so unapproved documentation
 changes cannot slip in. Dry-run default; --apply writes (a sheet write: needs Elliot's yes first).
 --force skips the "health.json older than 24 h" guard."""

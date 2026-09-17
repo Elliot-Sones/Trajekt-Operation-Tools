@@ -44,7 +44,7 @@ Run `check.py` first, every time. Show Elliot the list. Do not touch the sheets 
    `--apply` creates a tab per new table: that is a tab add, so name the new tables in the list he says yes to.
    Run the apply straight after the yes. Never run `check.py` in between: it refreshes `last_run/schema.json`, and the apply would then write field changes he has not seen. For a cosmetic re-apply (notes, wording, formatting) use `build_all_tabs.py --apply --same-fields`, which refuses to write if any tab's field set no longer matches Airtable.
 4. Then the ERP index (`14CzW0F0heH5FnMfKI0Si5i-XrJK4mwkNXJa9tE1oMTM`, tab Sheet1, rows 12–30): field counts in column D, date in F, chip in E. Status column C is Elliot's; never change it.
-5. Health column = column I on every table tab (added 2026-09-17 on Elliot's yes; header `Health (as of <date>)`, one cell per field: `filled N/M` + one line per 🔴/🟡 finding). Refreshing it is a sheet write: only after his **yes** to that.
+5. Health column = column I on every table tab (added 2026-09-17 on Elliot's yes; header `Health (as of <date>)`, one cell per field: ✅ when nothing is flagged, else one line per 🔴/🟡 finding; no fill counts, per Elliot). Refreshing it is a sheet write: only after his **yes** to that.
    ```bash
    python3 "$SKILL_DIR"/scripts/write_health.py            # dry run: rows / flagged per tab, unmatched rows
    python3 "$SKILL_DIR"/scripts/write_health.py --apply    # writes ONLY column I (cells, header date, width, format)
@@ -60,7 +60,7 @@ python3 "$SKILL_DIR"/scripts/health.py --full     # every finding
 python3 "$SKILL_DIR"/scripts/health.py --table "Installs"
 ```
 It writes nothing; findings are evidence, not fixes: every repair is an Airtable write that needs his yes per item.
-`health.py --docs-preview` shows the per-field Health cell text the sheet's Health column carries (fill count + flags; built in `scripts/health_cells.py`, the one place that text is defined). Checks: empty / sparse / abandoned fields (no value
+`health.py --docs-preview` shows the per-field Health cell text the sheet's Health column carries (✅ or the flag lines; built in `scripts/health_cells.py`, the one place that text is defined). Checks: empty / sparse / abandoned fields (no value
 on recent rows), constant fields, numbers or dates stored as text, invalid emails / URLs / phones, negative hours or costs, outliers
 (>20× median), far-future or far-past dates, end-before-start on date pairs, formula errors, HTML or empty attachments, recent rows all
 zero (automation default-0 pattern), unused select options, option twins (case / spacing), stray whitespace, placeholder values,
