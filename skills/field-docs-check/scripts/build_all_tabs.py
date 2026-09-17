@@ -134,6 +134,26 @@ for t in sch['tables']:
     desc=DESC.get(f"TABLE {tn}") or tabdesc(oldname) or ''
     plan.append({'table':tn,'tableId':t['id'],'oldtab':oldname,'sheetId':sheet_ids.get(oldname),'rows':rows,'desc':desc,'oldcount':len(old)})
 json.dump(plan,open(f'{S}/plan_all.json','w'),indent=1)
+# --keep-health: carry each tab's CURRENT Health cells forward instead of rewriting them from last_run/health.json
+# (Elliot 2026-09-17: "don't change the field health"). Cells follow their field by id (rename-proof), else by name;
+# each tab keeps its own header text. Removed fields drop with their row; a field with no cell on the sheet gets ''.
+if '--keep-health' in sys.argv:
+    import urllib.parse as _up
+    _H={'Authorization':'Bearer '+sheets_token()}; _live=[p for p in plan if p['sheetId'] is not None]
+    _q='&'.join('ranges='+_up.quote(f"'{p['oldtab']}'!A8:I600") for p in _live)
+    _vr=json.load(urllib.request.urlopen(urllib.request.Request(f'https://sheets.googleapis.com/v4/spreadsheets/{ID}/values:batchGet?{_q}',headers=_H)))['valueRanges']
+    kept=0
+    for p,vr in zip(_live,_vr):
+        rows=vr.get('values',[]); hdr=rows[0] if rows else []
+        p['health_hdr']=next((c for c in hdr if str(c).startswith('Health')),None)
+        byid={}; byname={}
+        for r in rows[1:]:
+            if not r or not r[0]: break
+            r=(r+['']*9)[:9]; byname[r[0]]=r[8]
+            if r[6]: byid[r[6]]=r[8]
+        for r in p['rows']:
+            r[8]=byid.get(r[6],byname.get(r[0],'')); kept+=bool(r[8])
+    print(f"--keep-health: Health cells carried over from the sheet as they are ({kept} cells); headers kept")
 # --same-fields: refuse to write when the field set on any tab differs from Airtable (use for cosmetic re-applies,
 # so a schema change that Elliot has not said yes to cannot slip in through a rewrite)
 if '--same-fields' in sys.argv:
@@ -148,7 +168,7 @@ if '--same-fields' in sys.argv:
 for p in ([] if '--dry' in sys.argv else plan):
     fresh=sum(1 for r in p['rows'] if f"{p['table']}::{r[0]}" in DESC); auto=sum(1 for r in p['rows'] if r[4]); fm=sum(1 for r in p['rows'] if r[5])
     print(f"{p['table'].ljust(24)} tab={'NEW' if p['sheetId'] is None else p['oldtab']:<10} fields={len(p['rows']):3} (was {p['oldcount']:3}) hand-desc={fresh:3} automations={auto:3} forms={fm:3}")
-if '--dry' not in sys.argv: print(f"Health column (I): {HDR}, from last_run/health.json" if HC else "Health column (I): NO last_run/health.json → would be written BLANK; run health.py (or check.py --health) first")
+if '--dry' not in sys.argv: print("Health column (I): kept as it is on the sheet (--keep-health)" if '--keep-health' in sys.argv else f"Health column (I): {HDR}, from last_run/health.json" if HC else "Health column (I): NO last_run/health.json → would be written BLANK; run health.py (or check.py --health) first")
 if not APPLY:
     if '--dry' not in sys.argv: print('\nDRY RUN')
     sys.exit()
@@ -175,7 +195,7 @@ for p in plan:
     n=len(p['rows']); tn=p['table'].replace("'","''")
     data.append({'range':f"'{tn}'!A1",'values':[[p['table']]]})
     data.append({'range':f"'{tn}'!A3",'values':[[p['desc']]]})
-    data.append({'range':f"'{tn}'!A8:I8",'values':[['Field name','Type','Description','Related','Automations','Forms','Field ID','Notes',HDR]]})
+    data.append({'range':f"'{tn}'!A8:I8",'values':[['Field name','Type','Description','Related','Automations','Forms','Field ID','Notes',p.get('health_hdr') or HDR]]})
     data.append({'range':f"'{tn}'!A9:I{8+n}",'values':p['rows']})
     data.append({'range':f"'{tn}'!A{9+n}:I{9+n+80}",'values':[['']*9]*81})
 for dead in ('Trajekt Summary','Trajekt Personnel','Maintenance Checks'):
