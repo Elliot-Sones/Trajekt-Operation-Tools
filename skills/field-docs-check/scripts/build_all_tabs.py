@@ -118,7 +118,7 @@ def notes(t,f,old):
         return (old[ni] if old and len(old)>ni else '')
     rel=(old[3] if old else '').strip()
     if rel.startswith('Referenced by') or (related(t,f).startswith('Options:') and '/' in rel and len(rel)<=70): return ''
-    if not rel or rel=='-' or re.match(r'^(→|Linked to|options?:|\d+ options|Yes / No|primary key|lookup|rollup|formula|"|[A-Z_]+\()',rel,re.I): return ''
+    if not rel or rel=='-' or re.match(r'^(→|Linked to|Links to|Used by|Options?:|Formula:|Lookup:|Rollup:|Zone:|Count:|\d+ options|Yes / No|primary key|lookup|rollup|formula|"|[A-Z_]+\()',rel,re.I): return ''   # computed Related text never becomes a Note
     return rel
 
 sheet_ids={k:v['gid'] for k,v in json.load(open(f'{S}/sheet.json')).items()}
