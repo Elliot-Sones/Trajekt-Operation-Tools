@@ -126,7 +126,10 @@ for t in tables:
                         out=[v for v in nums if abs(v)>20*med]
                         if out: add(tn,nm,'🟡','outliers',f"{len(out)} values more than 20× the median ({med:g}); max {max(out,key=abs):g}",len(out))
                 rz=[v for v in rf if isinstance(v,(int,float))]
-                if nrec>=10 and len(rz)>=10 and sum(1 for v in rz if v==0)>=0.8*len(rz) and any(v!=0 for v in nums): add(tn,nm,'🟡','recent-zeros',f"{pretty_pct(sum(1 for v in rz if v==0),len(rz))} of the last {DAYS} days' rows are 0 while older rows have real values (automation default 0?)")
+                older=[r['fields'].get(nm) for r in recs if r['_ts']<RECENT]; oz=[v for v in older if isinstance(v,(int,float))]
+                # only meaningful when there ARE older rows to compare with (a bulk-created table has none)
+                if nrec>=10 and len(rz)>=10 and len(oz)>=10 and sum(1 for v in rz if v==0)>=0.8*len(rz) and sum(1 for v in oz if v!=0)>=0.5*len(oz):
+                    add(tn,nm,'🟡','recent-zeros',f"{pretty_pct(sum(1 for v in rz if v==0),len(rz))} of the last {DAYS} days' rows are 0 while {pretty_pct(sum(1 for v in oz if v!=0),len(oz))} of older rows have real values (automation default 0?)")
         if ty in('date','dateTime'):
             ds=[str(v)[:10] for v in filled if ISO.match(str(v))]
             horizon=6*365 if re.search(r'contract|expir|renew|target|accept|construction|readiness|latest|earliest|due|warranty|lease|amort',nm,re.I) else 400
