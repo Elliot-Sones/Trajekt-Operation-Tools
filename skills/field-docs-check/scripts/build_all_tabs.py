@@ -134,26 +134,38 @@ for t in sch['tables']:
     desc=DESC.get(f"TABLE {tn}") or tabdesc(oldname) or ''
     plan.append({'table':tn,'tableId':t['id'],'oldtab':oldname,'sheetId':sheet_ids.get(oldname),'rows':rows,'desc':desc,'oldcount':len(old)})
 json.dump(plan,open(f'{S}/plan_all.json','w'),indent=1)
-# --keep-health: carry each tab's CURRENT Health cells forward instead of rewriting them from last_run/health.json
-# (Elliot 2026-09-17: "don't change the field health"). Cells follow their field by id (rename-proof), else by name;
-# each tab keeps its own header text. Removed fields drop with their row; a field with no cell on the sheet gets ''.
-if '--keep-health' in sys.argv:
+# Columns to the RIGHT of the generated ones are Elliot's (comments in J…): on every apply they are carried forward per field
+# (by field id, else by name) so a re-ordered or shortened tab keeps each comment next to its field (Elliot 2026-09-17).
+# --keep-health additionally carries the Health column (I) as it is instead of rewriting it from last_run/health.json.
+KEEP='--keep-health' in sys.argv; L='ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+if (APPLY or KEEP) and '--dry' not in sys.argv:
     import urllib.parse as _up
     _H={'Authorization':'Bearer '+sheets_token()}; _live=[p for p in plan if p['sheetId'] is not None]
-    _q='&'.join('ranges='+_up.quote(f"'{p['oldtab']}'!A8:I600") for p in _live)
+    _q='&'.join('ranges='+_up.quote(f"'{p['oldtab']}'!A8:Z600") for p in _live)
     _vr=json.load(urllib.request.urlopen(urllib.request.Request(f'https://sheets.googleapis.com/v4/spreadsheets/{ID}/values:batchGet?{_q}',headers=_H)))['valueRanges']
-    kept=0
+    kept=carried=0; orphans=[]
     for p,vr in zip(_live,_vr):
         rows=vr.get('values',[]); hdr=rows[0] if rows else []
-        p['health_hdr']=next((c for c in hdr if str(c).startswith('Health')),None)
-        byid={}; byname={}
+        body=[]
         for r in rows[1:]:
             if not r or not r[0]: break
-            r=(r+['']*9)[:9]; byname[r[0]]=r[8]
-            if r[6]: byid[r[6]]=r[8]
+            body.append(r)
+        w=min(26,max([9]+[len(x) for x in [hdr]+body if any(str(c).strip() for c in x[9:])]))   # widest row with content right of I
+        p['extra_w']=w-9; p['extra_hdr']=(hdr+['']*w)[9:w]; p['old_n']=len(body)
+        p['health_hdr']=next((c for c in hdr if str(c).startswith('Health')),None)
+        byid={}; byname={}
+        for r in body:
+            r=(r+['']*w)[:w]; byname[r[0]]=r; byid[r[6]]=r if r[6] else byid.get(r[6])
+        ids={r[6] for r in p['rows']}; names={r[0] for r in p['rows']}
+        for r in body:
+            r=(r+['']*w)[:w]
+            if r[6] not in ids and r[0] not in names and any(str(c).strip() for c in r[9:]): orphans.append((p['table'],r[0],[c for c in r[9:] if str(c).strip()]))
         for r in p['rows']:
-            r[8]=byid.get(r[6],byname.get(r[0],'')); kept+=bool(r[8])
-    print(f"--keep-health: Health cells carried over from the sheet as they are ({kept} cells); headers kept")
+            old=byid.get(r[6]) or byname.get(r[0]) or ['']*w
+            if KEEP: r[8]=old[8]; kept+=bool(old[8])
+            r.extend(old[9:w]); carried+=sum(1 for c in old[9:w] if str(c).strip())
+    print(f"right-of-Health columns carried per field: {carried} cells"+(f"; Health cells kept as on the sheet: {kept}" if KEEP else "; Health rewritten from health.json"))
+    for t,f,cells in orphans: print(f"  ⚠ orphaned comment (field gone from {t}): {f!r} -> {cells}")
 # --same-fields: refuse to write when the field set on any tab differs from Airtable (use for cosmetic re-applies,
 # so a schema change that Elliot has not said yes to cannot slip in through a rewrite)
 if '--same-fields' in sys.argv:
@@ -168,7 +180,7 @@ if '--same-fields' in sys.argv:
 for p in ([] if '--dry' in sys.argv else plan):
     fresh=sum(1 for r in p['rows'] if f"{p['table']}::{r[0]}" in DESC); auto=sum(1 for r in p['rows'] if r[4]); fm=sum(1 for r in p['rows'] if r[5])
     print(f"{p['table'].ljust(24)} tab={'NEW' if p['sheetId'] is None else p['oldtab']:<10} fields={len(p['rows']):3} (was {p['oldcount']:3}) hand-desc={fresh:3} automations={auto:3} forms={fm:3}")
-if '--dry' not in sys.argv: print("Health column (I): kept as it is on the sheet (--keep-health)" if '--keep-health' in sys.argv else f"Health column (I): {HDR}, from last_run/health.json" if HC else "Health column (I): NO last_run/health.json → would be written BLANK; run health.py (or check.py --health) first")
+if '--dry' not in sys.argv: print("Health column (I): kept as it is on the sheet (--keep-health)" if KEEP else f"Health column (I): {HDR}, from last_run/health.json" if HC else "Health column (I): NO last_run/health.json → would be written BLANK; run health.py (or check.py --health) first")
 if not APPLY:
     if '--dry' not in sys.argv: print('\nDRY RUN')
     sys.exit()
@@ -195,9 +207,11 @@ for p in plan:
     n=len(p['rows']); tn=p['table'].replace("'","''")
     data.append({'range':f"'{tn}'!A1",'values':[[p['table']]]})
     data.append({'range':f"'{tn}'!A3",'values':[[p['desc']]]})
-    data.append({'range':f"'{tn}'!A8:I8",'values':[['Field name','Type','Description','Related','Automations','Forms','Field ID','Notes',p.get('health_hdr') or HDR]]})
-    data.append({'range':f"'{tn}'!A9:I{8+n}",'values':p['rows']})
+    xw=p.get('extra_w',0); last=L[8+xw]
+    data.append({'range':f"'{tn}'!A8:{last}8",'values':[['Field name','Type','Description','Related','Automations','Forms','Field ID','Notes',p.get('health_hdr') or HDR]+p.get('extra_hdr',[])]})
+    data.append({'range':f"'{tn}'!A9:{last}{8+n}",'values':p['rows']})
     data.append({'range':f"'{tn}'!A{9+n}:I{9+n+80}",'values':[['']*9]*81})
+    if xw and p.get('old_n',0)>n: data.append({'range':f"'{tn}'!J{9+n}:{last}{8+p['old_n']}",'values':[['']*xw]*(p['old_n']-n)})   # old rows that shifted up: clear their comments' old spots
 for dead in ('Trajekt Summary','Trajekt Personnel','Maintenance Checks'):
     if dead in sheet_ids: data.append({'range':f"'(deleted) {dead}'!A3",'values':[[f'TABLE DELETED from Trajekt_Dev (before 2026-09-08). This tab is a historical snapshot; remove when no longer needed.']]})
 r=call(f'https://sheets.googleapis.com/v4/spreadsheets/{ID}/values:batchUpdate',{'valueInputOption':'RAW','data':data})
