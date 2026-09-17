@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
-"""Refresh every tab of 'Trajekt_Dev Field Documentation' from the live Trajekt_Dev schema. Dry-run default; --apply writes."""
+"""Refresh every tab of 'Trajekt_Dev Field Documentation' from the live Trajekt_Dev schema. Dry-run default; --apply writes.
+Columns A..I: Field name, Type, Description, Related, Automations, Forms, Field ID, Notes, Health (I = from last_run/health.json)."""
 import json, re, sys, urllib.request, subprocess, os, glob
 from fdc_env import DASH, OUT as S, sheets_token
 ID='1nAA16LbtfpEacVcrteYJbHBP3iKDgpm_-cJD7Td8agA'; WO_GID=751011509
 APPLY='--apply' in sys.argv
 sch=json.load(open(f'{S}/schema.json')); tabs={k:v['rows'] for k,v in json.load(open(f'{S}/tabs.json')).items()}
 usage=json.load(open(f'{S}/usage_all.json'))
+from health_cells import cells_from, header_text   # column I (Health): from last_run/health.json, blank when absent
+HC={}; HDR='Health'
+if os.path.exists(f'{S}/health.json'):
+    _h=json.load(open(f'{S}/health.json')); HC=cells_from(_h); HDR=header_text(_h)
 import glob as _g
 wf_tables={}
 for _p in _g.glob(f'{S}/wf/*.json'):
@@ -125,7 +130,7 @@ for t in sch['tables']:
     rows=[]
     for f in t['fields']:
         o=old.get(f['name'])
-        rows.append([f['name'],TYPE.get(f['type'],f['type']),description(t,f,o),related(t,f),automations(t,f),forms(t,f,o),f['id'],notes(t,f,o)])
+        rows.append([f['name'],TYPE.get(f['type'],f['type']),description(t,f,o),related(t,f),automations(t,f),forms(t,f,o),f['id'],notes(t,f,o),HC.get(tn,{}).get(f['name'],'')])
     desc=DESC.get(f"TABLE {tn}") or tabdesc(oldname) or ''
     plan.append({'table':tn,'tableId':t['id'],'oldtab':oldname,'sheetId':sheet_ids.get(oldname),'rows':rows,'desc':desc,'oldcount':len(old)})
 json.dump(plan,open(f'{S}/plan_all.json','w'),indent=1)
@@ -143,6 +148,7 @@ if '--same-fields' in sys.argv:
 for p in ([] if '--dry' in sys.argv else plan):
     fresh=sum(1 for r in p['rows'] if f"{p['table']}::{r[0]}" in DESC); auto=sum(1 for r in p['rows'] if r[4]); fm=sum(1 for r in p['rows'] if r[5])
     print(f"{p['table'].ljust(24)} tab={'NEW' if p['sheetId'] is None else p['oldtab']:<10} fields={len(p['rows']):3} (was {p['oldcount']:3}) hand-desc={fresh:3} automations={auto:3} forms={fm:3}")
+if '--dry' not in sys.argv: print(f"Health column (I): {HDR}, from last_run/health.json" if HC else "Health column (I): NO last_run/health.json → would be written BLANK; run health.py (or check.py --health) first")
 if not APPLY:
     if '--dry' not in sys.argv: print('\nDRY RUN')
     sys.exit()
@@ -169,9 +175,9 @@ for p in plan:
     n=len(p['rows']); tn=p['table'].replace("'","''")
     data.append({'range':f"'{tn}'!A1",'values':[[p['table']]]})
     data.append({'range':f"'{tn}'!A3",'values':[[p['desc']]]})
-    data.append({'range':f"'{tn}'!A8:H8",'values':[['Field name','Type','Description','Related','Automations','Forms','Field ID','Notes']]})
-    data.append({'range':f"'{tn}'!A9:H{8+n}",'values':p['rows']})
-    data.append({'range':f"'{tn}'!A{9+n}:H{9+n+80}",'values':[['']*8]*81})
+    data.append({'range':f"'{tn}'!A8:I8",'values':[['Field name','Type','Description','Related','Automations','Forms','Field ID','Notes',HDR]]})
+    data.append({'range':f"'{tn}'!A9:I{8+n}",'values':p['rows']})
+    data.append({'range':f"'{tn}'!A{9+n}:I{9+n+80}",'values':[['']*9]*81})
 for dead in ('Trajekt Summary','Trajekt Personnel','Maintenance Checks'):
     if dead in sheet_ids: data.append({'range':f"'(deleted) {dead}'!A3",'values':[[f'TABLE DELETED from Trajekt_Dev (before 2026-09-08). This tab is a historical snapshot; remove when no longer needed.']]})
 r=call(f'https://sheets.googleapis.com/v4/spreadsheets/{ID}/values:batchUpdate',{'valueInputOption':'RAW','data':data})
@@ -182,17 +188,18 @@ fr=[]
 for p in plan:
     if p['table']=='Work Orders': continue
     sid=p['sheetId']; n=len(p['rows']); even=n-(n%2)
-    fr.append({'copyPaste':{'source':rng(WO_GID,0,8,0,8),'destination':rng(sid,0,8,0,8),'pasteType':'PASTE_FORMAT'}})
-    if even: fr.append({'copyPaste':{'source':rng(WO_GID,8,10,0,8),'destination':rng(sid,8,8+even,0,8),'pasteType':'PASTE_FORMAT'}})
-    if n%2: fr.append({'copyPaste':{'source':rng(WO_GID,8,9,0,8),'destination':rng(sid,8+even,9+even,0,8),'pasteType':'PASTE_FORMAT'}})
+    fr.append({'copyPaste':{'source':rng(WO_GID,0,8,0,9),'destination':rng(sid,0,8,0,9),'pasteType':'PASTE_FORMAT'}})
+    if even: fr.append({'copyPaste':{'source':rng(WO_GID,8,10,0,9),'destination':rng(sid,8,8+even,0,9),'pasteType':'PASTE_FORMAT'}})
+    if n%2: fr.append({'copyPaste':{'source':rng(WO_GID,8,9,0,9),'destination':rng(sid,8+even,9+even,0,9),'pasteType':'PASTE_FORMAT'}})
     fr.append({'copyPaste':{'source':rng(WO_GID,8+n,8+n+80,0,7),'destination':rng(sid,8+n,8+n+80,0,7),'pasteType':'PASTE_FORMAT'}}) if False else None
-    for ci,w in enumerate([300,110,300,470,307,195,170,420]): fr.append({'updateDimensionProperties':{'range':{'sheetId':sid,'dimension':'COLUMNS','startIndex':ci,'endIndex':ci+1},'properties':{'pixelSize':w},'fields':'pixelSize'}})
+    for ci,w in enumerate([300,110,300,470,307,195,170,420,360]): fr.append({'updateDimensionProperties':{'range':{'sheetId':sid,'dimension':'COLUMNS','startIndex':ci,'endIndex':ci+1},'properties':{'pixelSize':w},'fields':'pixelSize'}})
     if p['oldtab'] in sheet_ids and any(sheet_ids[p['oldtab']]==sid for _ in [0]):
         pass
 # the Work Orders tab is the template: give its own column H (Notes) column G's old format, and G the same, before tiling
 wo=[p for p in plan if p['table']=='Work Orders'][0]; won=len(wo['rows'])
 fr.insert(0,{'copyPaste':{'source':rng(WO_GID,7,8+won,6,7),'destination':rng(WO_GID,7,8+won,7,8),'pasteType':'PASTE_FORMAT'}})
-for ci,w in enumerate([300,110,300,470,307,195,170,420]): fr.insert(1,{'updateDimensionProperties':{'range':{'sheetId':WO_GID,'dimension':'COLUMNS','startIndex':ci,'endIndex':ci+1},'properties':{'pixelSize':w},'fields':'pixelSize'}})
+fr.insert(1,{'copyPaste':{'source':rng(WO_GID,7,8+won,7,8),'destination':rng(WO_GID,7,8+won,8,9),'pasteType':'PASTE_FORMAT'}})   # column I (Health) takes H's format
+for ci,w in enumerate([300,110,300,470,307,195,170,420,360]): fr.insert(1,{'updateDimensionProperties':{'range':{'sheetId':WO_GID,'dimension':'COLUMNS','startIndex':ci,'endIndex':ci+1},'properties':{'pixelSize':w},'fields':'pixelSize'}})
 fr=[x for x in fr if x]
 # merge A1:F1 → A1:G1 title like WO tab (WO has merge A1:F2)
 for p in plan:

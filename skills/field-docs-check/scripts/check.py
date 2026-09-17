@@ -46,8 +46,10 @@ for s in sh['sheets']:
     hdr=next((i for i,r in enumerate(rows) if r and r[0]=='Field name'),None)
     cols={h:i for i,h in enumerate(rows[hdr])} if hdr is not None else {}
     tabs[s['properties']['title']]={'gid':s['properties']['sheetId'],'cols':cols,'fields':{(r+['']*8)[0]:(r+['']*8)[:8] for r in rows[hdr+1:] if r and r[0]} if hdr is not None else {}}
+    tabs[s['properties']['title']]['health']=next((c for c in (rows[hdr] if hdr is not None else []) if str(c).startswith('Health')),'')   # column I header, e.g. 'Health (as of 2026-09-17)'
 json.dump({k:{'gid':v['gid'],'fields':v['fields']} for k,v in tabs.items()},open(f'{OUT}/sheet.json','w'))
 R={'tables':{},'new_tables':[],'tabs_without_table':[],'summary':{}}
+R['health_column']={k:v['health'] for k,v in tabs.items() if v.get('health')}
 live={t['name']:t for t in sch['tables']}
 R['new_tables']=[n for n in live if n not in tabs]
 R['tabs_without_table']=[n for n in tabs if n not in live and n not in('README',) and not n.startswith('(deleted)')]
@@ -170,3 +172,10 @@ print(f"\n(nothing was written; details in {OUT}/report.json)")
 
 if '--health' in sys.argv:
     import subprocess as _sp; print(); sys.stdout.flush(); _sp.run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)),'health.py')]+([ '--full'] if '--full' in sys.argv else []), env={**os.environ,'FDC_OUT':OUT})
+
+# ---------- Health column on the sheet (column I; written by write_health.py --apply or build_all_tabs.py --apply, never by this check)
+_hs=sorted({re.sub(r'^Health\s*\(as of\s*|\)\s*$','',v).strip() for v in R['health_column'].values()}-{''})
+_nt=sum(1 for k in tabs if k!='README' and not k.startswith('(deleted)'))
+_hp=os.path.join(OUT,'health.json'); _hd=json.load(open(_hp)).get('generated','')[:10] if os.path.exists(_hp) else ''
+if not R['health_column']: print("\nSheet Health column: none yet (write_health.py --apply adds it; a sheet write, needs a yes)")
+else: print(f"\nSheet Health column: as of {', '.join(_hs) or '?'} on {len(R['health_column'])} of {_nt} tabs"+(f" — stale vs the {_hd} health run: say yes to refresh (write_health.py --apply)" if _hd and (not _hs or max(_hs)<_hd) else ""))

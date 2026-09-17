@@ -178,24 +178,18 @@ nd=[x for x in findings if x['code']=='no-description']
 if nd: print(f"\nℹ {len(nd)} fields have no description in Airtable (listed in health.json).")
 print(f"\n(nothing was written; details in {OUT}/health.json)")
 
-# ---------- what a "Health" cell per field would say (used by build_all_tabs.py when a Health column is enabled)
-def health_cell(table,field):
-    st=FSTAT.get(table,{}).get(field); 
-    if not st: return ''
-    parts=[]
-    ro=st['type'] in('formula','multipleLookupValues','rollup','count','autoNumber','createdTime','lastModifiedTime')
-    if not ro and st['rows']: parts.append(f"filled {st['filled']}/{st['rows']}"+(f" · last {DAYS}d {st['recent_filled']}/{st['recent_rows']}" if 10<=st['recent_rows']<st['rows'] else ''))
-    for x in findings:
-        if x['table']==table and x['field']==field and x['code']!='no-description': parts.append(x['sev']+' '+x['msg'])
-    return '\n'.join(parts)
+# ---------- what a "Health" cell per field says (scripts/health_cells.py is the single source; write_health.py / build_all_tabs.py use it)
+from health_cells import cells_from, is_flagged
+CELLS=cells_from({'days':DAYS,'generated':NOW.isoformat(),'findings':findings,'fields':FSTAT})
+def health_cell(table,field): return CELLS.get(table,{}).get(field,'')
 if '--docs-preview' in sys.argv:
-    print('\n=== DOCS PREVIEW: the Health cell each field would get (only fields with a flag shown; every field gets the fill line)')
+    print('\n=== DOCS PREVIEW: the Health cell each field gets (only fields with a flag shown; every field gets the fill line)')
     tot=0; flagged=0
     for t in tables:
         lines=[]
         for f in t['fields']:
             c=health_cell(t['name'],f['name']); tot+=1
-            if '🔴' in c or '🟡' in c: flagged+=1; lines.append(f"    {f['name'][:36].ljust(36)} | "+c.replace('\n',' | '))
+            if is_flagged(c): flagged+=1; lines.append(f"    {f['name'][:36].ljust(36)} | "+c.replace('\n',' | '))
         if lines: print(f"  {t['name']} ({len(lines)} flagged of {len(t['fields'])})"); [print(l[:200]) for l in lines[:8]]; 
         if len(lines)>8: print(f"    … +{len(lines)-8} more")
-    print(f"\n{flagged} of {tot} fields would carry a flag; the rest get just the fill count.")
+    print(f"\n{flagged} of {tot} fields carry a flag; the rest get just the fill count.")

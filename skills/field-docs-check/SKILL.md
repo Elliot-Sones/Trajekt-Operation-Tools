@@ -30,7 +30,9 @@ Run `check.py` first, every time. Show Elliot the list. Do not touch the sheets 
    <scoreboard table verbatim>
    🔴 <the wrong-looking-data lines verbatim>
    🟡 <the hygiene lines as the script prints them, capped>
-   Health is not written to the sheet yet: say yes to a "Health" column and it will be. Fixing any finding is an Airtable write and needs a yes per item.
+   <the script's last line verbatim: "Sheet Health column: as of <date> on N of N tabs" (+ "stale …") or "none yet">
+   Say yes and I'll refresh the Health column.   <- only when that line says stale or none yet
+   Fixing any finding is an Airtable write and needs a yes per item.
    ```
    No other commentary. Renames are labeled exact (by field id) or guess; keep the label.
 3. Only after his **yes** to the documentation list: refresh the tabs. Add a description for every NEW field to `scripts/descriptions.json` first (`"Table::Field": "text"`, optional `"NOTE Table::Field"`, `"TABLE Name"` blurb); fields without one get a name-derived placeholder.
@@ -42,6 +44,12 @@ Run `check.py` first, every time. Show Elliot the list. Do not touch the sheets 
    `--apply` creates a tab per new table: that is a tab add, so name the new tables in the list he says yes to.
    Run the apply straight after the yes. Never run `check.py` in between: it refreshes `last_run/schema.json`, and the apply would then write field changes he has not seen. For a cosmetic re-apply (notes, wording, formatting) use `build_all_tabs.py --apply --same-fields`, which refuses to write if any tab's field set no longer matches Airtable.
 4. Then the ERP index (`14CzW0F0heH5FnMfKI0Si5i-XrJK4mwkNXJa9tE1oMTM`, tab Sheet1, rows 12–30): field counts in column D, date in F, chip in E. Status column C is Elliot's; never change it.
+5. Health column = column I on every table tab (added 2026-09-17 on Elliot's yes; header `Health (as of <date>)`, one cell per field: `filled N/M` + one line per 🔴/🟡 finding). Refreshing it is a sheet write: only after his **yes** to that.
+   ```bash
+   python3 "$SKILL_DIR"/scripts/write_health.py            # dry run: rows / flagged per tab, unmatched rows
+   python3 "$SKILL_DIR"/scripts/write_health.py --apply    # writes ONLY column I (cells, header date, width, format)
+   ```
+   It aligns each cell to the tab's CURRENT Field name rows and never rewrites columns A–H, so it is safe while documentation changes are still pending. Source = `last_run/health.json`; it refuses when that file is older than 24 h (`--force` overrides). `build_all_tabs.py --apply` rewrites column I from the same file, so run `check.py --health` (or `health.py`) before a full apply or the column is written blank.
 
 ## Field health (what `--health` runs; standalone when he asks only about the data)
 
@@ -52,7 +60,7 @@ python3 "$SKILL_DIR"/scripts/health.py --full     # every finding
 python3 "$SKILL_DIR"/scripts/health.py --table "Installs"
 ```
 It writes nothing; findings are evidence, not fixes: every repair is an Airtable write that needs his yes per item.
-`health.py --docs-preview` shows the per-field Health cell text that a Health column would carry (fill count + flags). Checks: empty / sparse / abandoned fields (no value
+`health.py --docs-preview` shows the per-field Health cell text the sheet's Health column carries (fill count + flags; built in `scripts/health_cells.py`, the one place that text is defined). Checks: empty / sparse / abandoned fields (no value
 on recent rows), constant fields, numbers or dates stored as text, invalid emails / URLs / phones, negative hours or costs, outliers
 (>20× median), far-future or far-past dates, end-before-start on date pairs, formula errors, HTML or empty attachments, recent rows all
 zero (automation default-0 pattern), unused select options, option twins (case / spacing), stray whitespace, placeholder values,
@@ -70,6 +78,7 @@ window (default 90). Contract-style dates are allowed 6 years ahead; other dates
 | AUTOMATIONS / FORMS changed | the Automations or Forms cell differs from a fresh recompute. Automations: active n8n workflow JSON via REST. Forms: `form_bindings.py` derives question → table.field from REAL submissions (the row each submission created, found by its stamped submission id or by creation time + matching values; only writable field types; Yes/No coincidences need two agreeing rows). Fillout's API exposes no mapping, so evidence from data is the only true source. Name-matching + the hand map are the fallback for forms with no recent submissions |
 | EMPTY / SPARSE | 0 rows filled / ≤5 rows filled (tables with ≥20 rows) |
 | n8n dead columns | an ACTIVE workflow's Airtable node maps a column that no longer exists (the rename-zeroes-invoices failure mode) |
+| HEALTH STALE | the Health column's header date on the sheet is older than the latest health run (last line of the check) |
 
 ## Never
 
