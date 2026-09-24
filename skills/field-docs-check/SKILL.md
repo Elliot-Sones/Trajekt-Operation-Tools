@@ -1,11 +1,11 @@
 ---
 name: field-docs-check
-description: Use when asked whether the Airtable field documentation is up to date, what changed in Trajekt_Dev (new fields, renamed or removed fields, new tables), to refresh the "Trajekt_Dev Field Documentation" Google Sheet or the ERP Documentation Index, or about the health of the fields (empty or unused fields, weird or wrong-looking values, duplicates, bad attachments). Also when an Airtable rename may have broken an n8n write.
+description: Use when asked whether the Airtable field documentation is up to date, what changed in Trajekt_Prod (formerly Trajekt_Dev; new fields, renamed or removed fields, new tables), to refresh the "Trajekt_Dev Field Documentation" Google Sheet or the ERP Documentation Index, about the health of the fields (empty or unused fields, weird or wrong-looking values, bad attachments), or about data integrity (duplicate contacts, customers, facilities or warehouses, shared phone numbers, impossible dates, cost rows missing information). Also when an Airtable rename may have broken an n8n write. Output is an HTML page.
 ---
 
 # Field docs check
 
-Compares the live Trajekt_Dev base to the two documentation sheets and reports the differences. **Reporting is the deliverable. Writing is a separate, gated step.**
+Checks the live Trajekt_Prod base (appAqIfICwLXNquzF, renamed from Trajekt_Dev) in two phases: (1) data integrity and field health, (2) the documentation sheets and their Health column. **The deliverable is one HTML page** (`last_run/report.html`) with every finding and an Airtable link on every record. Writing to Airtable or the sheets is a separate, gated step.
 
 ## The rule
 
@@ -15,12 +15,21 @@ Run `check.py` first, every time. Show Elliot the list. Do not touch the sheets 
 
 ## Steps
 
-1. Run the check (writes nothing). One command does both the documentation drift AND the field-health pass:
+1. Run the check (writes nothing to Airtable or the sheets). One command does the documentation drift, the field-health pass, the data-integrity pass and builds the page:
    ```bash
    python3 "$SKILL_DIR"/scripts/check.py --health
    ```
-   Takes 3–5 minutes (n8n REST + Fillout submissions + every Airtable row). `--no-usage` skips the Automations/Forms recompute; `--full` lists every health finding instead of 6 per table; `--data`/`--n8n` add the raw empty-field and dead-column scans if he asks for them.
-2. Reply in exactly this shape, using the script's own lines:
+   Takes about 5 minutes (n8n REST + Fillout submissions + every Airtable row, read twice). `--no-usage` skips the Automations/Forms recompute; `--full` lists every health finding instead of 6 per table; `--data` adds the raw empty-field scan; `--no-html` skips integrity + the page. The run ends with `integrity.py` then `report_html.py`; rebuild just the page with `python3 "$SKILL_DIR"/scripts/report_html.py`.
+2. Publish `last_run/report.html` with the Artifact tool. Update the existing page when you can: `url` = https://claude.ai/artifact/61iZeeehGPnN6ACvNvY6sV (read it first, then publish with that `url`), so Elliot keeps one link. Then reply with the link and a short summary in this shape:
+   ```
+   <link>
+   Data: <N wrong / N check / N tidy finding types>, worst: <the Wrong cards, one line each>
+   Documentation: <"up to date" or "needs updating: N change(s)">; Health column: <N out of date, N fields without a cell, N misplaced>
+   Say yes and I'll apply the documentation changes.   <- only when there are changes
+   Say yes and I'll refresh the Health column.         <- only when it is out of date
+   Fixing any finding is an Airtable write and needs a yes per item.
+   ```
+   Before you call anything "wrong" in words, check the rules under "Data integrity" below. The old text-only reply shape follows for reference; use it only if the page cannot be published:
    ```
    Documentation: <first line of the script: "up to date" or "needs updating: N change(s)">
    - <change list verbatim, if any>
@@ -69,6 +78,31 @@ zero (automation default-0 pattern), unused select options, option twins (case /
 duplicate primary values, test rows, leftover or misspelled field names, missing Airtable descriptions. `--days N` sets the recent
 window (default 90). Contract-style dates are allowed 6 years ahead; other dates 400 days.
 
+## Data integrity (integrity.py; also standalone)
+
+```bash
+python3 "$SKILL_DIR"/scripts/integrity.py      # writes last_run/integrity.json, prints one line per finding type
+```
+Checks: duplicate contacts (same or near-same name, same phone, same email, same Slack ID), customers (name, QuickBooks ID, tax ID, acronym),
+facilities (name, address), warehouses/vendors (name, email, phone, one name inside another), scopes, parts, PO numbers, twin install rows,
+twin visit rows, two cost rows per person per WO, ids that must be unique (Fillout submission ids, Slack channel, brief email id); machines
+(wheel serials reused, MAC / computer serial / TeamViewer / IP reused, build-FAT-install date order, status vs customer vs facility,
+Previous/Next links, MachineDownStatus vs running downtime); work orders (missing machine/customer/facility/type, facility of another
+customer, Complete with no visit, downtime contradictions, visit a month before the requested start, Intercom field that is not Intercom);
+visits (end before start, future dates, longer than 14 days, one person at two facilities at once, missing person/WO/date/type); cost rows
+(missing WO or person, hours without wages, wages without hours, hand-made rows, wage not equal to hours x current rate, Flight/Overnight vs money,
+hotel nights vs hotel cost, no receipt, cost with no visit, technician visit with no cost); contacts, customers, facilities, installs,
+contracts, inventory, part lines with no part or quantity, movement logs, purchase orders, and test/demo rows.
+Each finding lists every record with its own Airtable link. Fields are read by the ids pinned in `scripts/integrity_fields.json` (renames
+cannot break a check; a check whose field is gone is skipped and shown on the page). `scripts/known.json` holds cases Elliot already reviewed
+(check id -> case key -> note); add to it when he says a case is fine.
+
+**Never flag (Elliot's rules):**
+- Moving Parts lines shared by several work orders. A line is a reusable "part x quantity" line; many WOs share one line when each used that
+  part, and the WO parts rollup counting it on every WO is correct (Elliot 2026-09-24: "that is so normal"). Never call it double counting.
+- A visit Type that differs from ContactRole for dual-role people (tech and staff).
+Before calling a pattern an error, test the premise on the data (for example: are the linked WOs separate jobs on separate machines and dates?).
+
 ## What "changed" means
 
 | Signal | Source |
@@ -88,6 +122,7 @@ window (default 90). Contract-style dates are allowed 6 years ahead; other dates
 - Add a tab, row or column without Elliot naming it and saying yes.
 - Delete tabs for deleted tables: rename them `(deleted) …` instead.
 - Change the ERP index Status column.
+- Report shared Moving Parts lines as double counting.
 
 ## Access
 

@@ -170,7 +170,7 @@ for t in tables:
 json.dump({'generated':NOW.isoformat(),'days':DAYS,'score':score,'findings':findings,'fields':FSTAT},open(f'{OUT}/health.json','w'),indent=1,ensure_ascii=False)
 # ---------- print
 score.sort(key=lambda s:(-s['red'],-(s['yellow']/max(s['fields'],1)),s['table']))
-print(f"FIELD HEALTH  Trajekt_Dev  {NOW.strftime('%Y-%m-%d')}   (recent = last {DAYS} days; read-only)")
+print(f"FIELD HEALTH  Trajekt_Prod  {NOW.strftime('%Y-%m-%d')}   (recent = last {DAYS} days; read-only)")
 print(f"{'table':26}{'rows':>6}{'fields':>8}{'healthy':>9}{'🔴':>5}{'🟡':>5}{'no desc':>9}")
 for s in score: print(f"{s['table']:26}{s['rows']:>6}{s['fields']:>8}{s['ok']:>8} {s['red']:>4} {s['yellow']:>4} {s['no_description']:>8}")
 CAP=None if FULL else 6

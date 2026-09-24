@@ -1,0 +1,22 @@
+{
+ "_note": "Cases Elliot already reviewed. integrity.py keeps them in the report with this tag. Keys: check id -> case key -> note.",
+ "visit-twins": {
+  "514": "reviewed 2026-09-16: two real Nitesh Mistry support sessions"
+ },
+ "cost-twins": {
+  "401": "reviewed 2026-09-16: two real visits",
+  "454": "reviewed 2026-09-16: two real visits",
+  "612": "open since 2026-09-14: Elliot to pick $978.50 (import) or $1,040 (resubmit)"
+ },
+ "cost-no-visit": {
+  "WO Invoice - 696 - Michael Cammiso": "visit row deleted by mistake 2026-09-16; restore pending",
+  "WO Invoice - 718 - Peter Wiseman": "visit never imported from Notion (known 2026-09-14)"
+ },
+ "cost-hand-made": {
+  "WO Invoice - 689 - Zachary Matuszak": "back-fill made by hand 2026-09-16 (CLAUDE.md, WOS cost-dedupe session)",
+  "WO Invoice - 612 - Juan Basilotta": "back-fill made by hand 2026-09-16 (CLAUDE.md, WOS cost-dedupe session)",
+  "WO Invoice - 718 - Peter Wiseman": "back-fill made by hand 2026-09-16 (CLAUDE.md, WOS cost-dedupe session)",
+  "WO Invoice - 718 - Ayato Hayashizaki": "back-fill made by hand 2026-09-16 (CLAUDE.md, WOS cost-dedupe session)",
+  "WO Invoice - 684 - Julian Anderson": "back-fill made by hand 2026-09-16 (CLAUDE.md, WOS cost-dedupe session)"
+ }
+}

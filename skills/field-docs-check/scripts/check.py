@@ -5,6 +5,10 @@ Writes NOTHING. Usage: python3 check.py            -> documentation drift only (
                         python3 check.py --n8n      -> also active workflows writing dead columns
                         python3 check.py --health   -> also run the field-health pass (health.py) after the verdict
                         python3 check.py --no-usage -> skip the n8n/Fillout recompute of the Automations + Forms columns (faster)
+                        python3 check.py --no-html  -> skip the data-integrity pass and the HTML page
+By default the run ends with integrity.py (data integrity) and report_html.py, which writes last_run/report.html:
+one page with every finding, each record linked to Airtable. Publish that page (Artifact tool) as the deliverable.
+The active-workflow scan (dead columns, active [WIP] workflows) runs whenever N8N_API_KEY is set.
 """
 import json, re, sys, os, subprocess, urllib.request, urllib.parse, time
 from fdc_env import DASH, OUT, load_env, sheets_token
@@ -48,6 +52,7 @@ for s in sh['sheets']:
     tabs[s['properties']['title']]={'gid':s['properties']['sheetId'],'cols':cols,'fields':{(r+['']*8)[0]:(r+['']*8)[:8] for r in rows[hdr+1:] if r and r[0]} if hdr is not None else {}}
     tabs[s['properties']['title']]['health']=next((c for c in (rows[hdr] if hdr is not None else []) if str(c).startswith('Health')),'')   # column I header, e.g. 'Health (as of 2026-09-17)'
 json.dump({k:{'gid':v['gid'],'fields':v['fields']} for k,v in tabs.items()},open(f'{OUT}/sheet.json','w'))
+json.dump({s['properties']['title']:[[c.get('formattedValue','') for c in r.get('values',[])] for r in s['data'][0].get('rowData',[])] for s in sh['sheets']},open(f'{OUT}/sheet_full.json','w'))   # every column: Health (I) + Elliot's comments (J…) + README
 R={'tables':{},'new_tables':[],'tabs_without_table':[],'summary':{}}
 R['health_column']={k:v['health'] for k,v in tabs.items() if v.get('health')}
 live={t['name']:t for t in sch['tables']}
@@ -93,13 +98,16 @@ if '--data' in sys.argv:
         R['tables'][tn]['sparse_fields']=[(k,v) for k,v in fill.items() if 0<v<=5 and n>=20]
         R['tables'][tn]['fill']=fill
 # ---------- n8n dead references (workflows naming fields that no longer exist)
-if '--n8n' in sys.argv and N8N:
+if N8N and '--no-n8n' not in sys.argv:
     NH={'X-N8N-API-KEY':N8N}; B='https://trajektsports.app.n8n.cloud/api/v1'
-    wl=get(f'{B}/workflows?limit=250',NH)['data']; dead=[]
+    wl=get(f'{B}/workflows?limit=250',NH)['data']; dead=[]; R['wip_active']=[]
     livenames={f['name'] for t in sch['tables'] for f in t['fields']}
     for w in wl:
         if not w['active']: continue
         wf=get(f"{B}/workflows/{w['id']}",NH)
+        if re.search(r'\[\s*WIP\s*\]',w['name'],re.I):   # the docs skip [WIP] workflows, so list the active ones that touch this base
+            txt=json.dumps(wf); hit=sorted({tid[x] for x in re.findall(r'tbl[A-Za-z0-9]{14}',txt) if x in tid})
+            if BASE in txt or hit: R['wip_active'].append({'name':w['name'],'id':w['id'],'tables':hit})
         for nd in wf['nodes']:
             if 'airtable' not in nd.get('type','').lower(): continue
             prm=nd.get('parameters',{}); cols=prm.get('columns') if isinstance(prm.get('columns'),dict) else None
@@ -111,7 +119,8 @@ if '--n8n' in sys.argv and N8N:
     R['n8n_dead_columns']=dead
 # ---------- ERP index counts
 erp=get(f"https://sheets.googleapis.com/v4/spreadsheets/{ERP}/values/Sheet1!A12:F30",SH).get('values',[])
-R['erp_index']=[]
+R['erp_index']=[]; R['erp_rows']=[(r+['']*6)[:6] for r in erp]
+R['base_name']=next((b['name'] for b in get('https://api.airtable.com/v0/meta/bases',AH).get('bases',[]) if b['id']==BASE),BASE)
 for r in erp:
     r=(r+['']*6)[:6]; tn=r[0]
     m=re.match(r'(\d+) fields',r[3] or '')
@@ -139,6 +148,17 @@ if '--no-usage' not in sys.argv:
             cols=tabs.get(p_['table'],{}).get('cols',{}); ai=cols.get('Automations',4); fmi=cols.get('Forms',5)
             if (old[ai] or '').strip()!=(r[4] or '').strip(): x['automations_drift'].append((r[0],old[ai],r[4]))
             if (old[fmi] or '').strip()!=(r[5] or '').strip(): x['forms_drift'].append((r[0],old[fmi],r[5]))
+            for col,a,b in (('Automations',old[ai],r[4]),('Forms',old[fmi],r[5])):
+                if (a or '').strip()==(b or '').strip(): continue
+                strip=lambda v:{re.sub(r'^\d+\.\s*','',l).strip() for l in (v or '').split('\n') if l.strip() and l.strip()!='-'}
+                A,Bs=strip(a),strip(b); key=f"{p_['table']}::{r[0]}"
+                def src(item):
+                    if col!='Forms': return 'n8n workflow JSON'
+                    norm_=lambda v:re.sub(r' - (Create|Update) \([A-Za-z0-9]{4}\)','',v)
+                    if item in {norm_(v) for v in bat.fbind.get(key,[])}: return 'real submissions'
+                    if item in {norm_(v) for v in bat.FORMS.get(p_['table'],{}).get(r[0],[])}: return 'hand map'
+                    return 'name match only (unproven)'
+                x.setdefault('usage_diff',[]).append({'field':r[0],'column':col,'added':[{'text':i,'source':src(i)} for i in sorted(Bs-A)],'removed':sorted(A-Bs)})
 # ---------- print: one answer first, then only what needs updating
 changes=[]
 for tn in R['new_tables']: changes.append(f"NEW TABLE {tn}: add a tab")
@@ -169,6 +189,8 @@ if R.get('n8n_dead_columns'):
     print("\nActive n8n nodes writing columns that no longer exist (informational):")
     for w,nd,col,tb in R['n8n_dead_columns']: print(f"  {w} :: {nd} :: {col}")
 print(f"\n(nothing was written; details in {OUT}/report.json)")
+R['changes']=changes; R['generated']=time.strftime('%Y-%m-%dT%H:%M:%S%z')
+json.dump(R,open(f'{OUT}/report.json','w'),indent=1,default=list)
 
 if '--health' in sys.argv:
     import subprocess as _sp; print(); sys.stdout.flush(); _sp.run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)),'health.py')]+([ '--full'] if '--full' in sys.argv else []), env={**os.environ,'FDC_OUT':OUT})
@@ -179,3 +201,10 @@ _nt=sum(1 for k in tabs if k!='README' and not k.startswith('(deleted)'))
 _hp=os.path.join(OUT,'health.json'); _hd=json.load(open(_hp)).get('generated','')[:10] if os.path.exists(_hp) else ''
 if not R['health_column']: print("\nSheet Health column: none yet (write_health.py --apply adds it; a sheet write, needs a yes)")
 else: print(f"\nSheet Health column: as of {', '.join(_hs) or '?'} on {len(R['health_column'])} of {_nt} tabs"+(f" — stale vs the {_hd} health run: say yes to refresh (write_health.py --apply)" if _hd and (not _hs or max(_hs)<_hd) else ""))
+
+# ---------- data integrity + the HTML page (the deliverable)
+if '--no-html' not in sys.argv:
+    import subprocess as _sp; print(); sys.stdout.flush()
+    _here=os.path.dirname(os.path.abspath(__file__))
+    _sp.run([sys.executable, os.path.join(_here,'integrity.py')], env={**os.environ,'FDC_OUT':OUT})
+    _sp.run([sys.executable, os.path.join(_here,'report_html.py')], env={**os.environ,'FDC_OUT':OUT})
