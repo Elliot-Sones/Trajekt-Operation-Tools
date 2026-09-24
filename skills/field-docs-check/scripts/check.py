@@ -7,7 +7,8 @@ Writes NOTHING. Usage: python3 check.py            -> documentation drift only (
                         python3 check.py --no-usage -> skip the n8n/Fillout recompute of the Automations + Forms columns (faster)
                         python3 check.py --no-html  -> skip the data-integrity pass and the HTML page
 By default the run ends with integrity.py (data integrity) and report_html.py, which writes last_run/report.html:
-one page with every finding, each record linked to Airtable. Publish that page (Artifact tool) as the deliverable.
+one page with every finding, each record linked to Airtable, opened in the browser at the end (--no-open to skip).
+NEVER publish it as a Claude artifact (Elliot 2026-09-24): it stays a local HTML file.
 The active-workflow scan (dead columns, active [WIP] workflows) runs whenever N8N_API_KEY is set.
 """
 import json, re, sys, os, subprocess, urllib.request, urllib.parse, time
@@ -208,3 +209,4 @@ if '--no-html' not in sys.argv:
     _here=os.path.dirname(os.path.abspath(__file__))
     _sp.run([sys.executable, os.path.join(_here,'integrity.py')], env={**os.environ,'FDC_OUT':OUT})
     _sp.run([sys.executable, os.path.join(_here,'report_html.py')], env={**os.environ,'FDC_OUT':OUT})
+    if '--no-open' not in sys.argv: _sp.run(['open', os.path.join(OUT,'report.html')])

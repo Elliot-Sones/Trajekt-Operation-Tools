@@ -5,7 +5,7 @@ description: Use when asked whether the Airtable field documentation is up to da
 
 # Field docs check
 
-Checks the live Trajekt_Prod base (appAqIfICwLXNquzF, renamed from Trajekt_Dev) in two phases: (1) data integrity and field health, (2) the documentation sheets and their Health column. **The deliverable is one HTML page** (`last_run/report.html`) with every finding and an Airtable link on every record. Writing to Airtable or the sheets is a separate, gated step.
+Checks the live Trajekt_Prod base (appAqIfICwLXNquzF, renamed from Trajekt_Dev) in two phases: (1) data integrity and field health, (2) the documentation sheets and their Health column. **The deliverable is one local HTML page** (`last_run/report.html`, opened in the browser, never a Claude artifact) with every finding and an Airtable link on every record. Writing to Airtable or the sheets is a separate, gated step.
 
 ## The rule
 
@@ -19,17 +19,17 @@ Run `check.py` first, every time. Show Elliot the list. Do not touch the sheets 
    ```bash
    python3 "$SKILL_DIR"/scripts/check.py --health
    ```
-   Takes about 5 minutes (n8n REST + Fillout submissions + every Airtable row, read twice). `--no-usage` skips the Automations/Forms recompute; `--full` lists every health finding instead of 6 per table; `--data` adds the raw empty-field scan; `--no-html` skips integrity + the page. The run ends with `integrity.py` then `report_html.py`; rebuild just the page with `python3 "$SKILL_DIR"/scripts/report_html.py`.
-2. Publish `last_run/report.html` with the Artifact tool. Update the existing page when you can: `url` = https://claude.ai/artifact/61iZeeehGPnN6ACvNvY6sV (read it first, then publish with that `url`), so Elliot keeps one link. Then reply with the link and a short summary in this shape:
+   Takes about 5 minutes (n8n REST + Fillout submissions + every Airtable row, read twice). `--no-usage` skips the Automations/Forms recompute; `--full` lists every health finding instead of 6 per table; `--data` adds the raw empty-field scan; `--no-html` skips integrity + the page; `--no-open` builds it without opening it. The run ends with `integrity.py` then `report_html.py`; rebuild just the page with `python3 "$SKILL_DIR"/scripts/report_html.py`.
+2. The page is `last_run/report.html`, a LOCAL file. `check.py` opens it in the browser at the end (reopen with `open "$SKILL_DIR"/last_run/report.html`). **NEVER publish it as a Claude artifact, and never use the Artifact tool for this skill (Elliot 2026-09-24: "NEVER A CLAUDE ARTIFACT").** Then reply with the file path and a short summary in this shape:
    ```
-   <link>
+   Page: <path to last_run/report.html> (opened in the browser)
    Data: <N wrong / N check / N tidy finding types>, worst: <the Wrong cards, one line each>
    Documentation: <"up to date" or "needs updating: N change(s)">; Health column: <N out of date, N fields without a cell, N misplaced>
    Say yes and I'll apply the documentation changes.   <- only when there are changes
    Say yes and I'll refresh the Health column.         <- only when it is out of date
    Fixing any finding is an Airtable write and needs a yes per item.
    ```
-   Before you call anything "wrong" in words, check the rules under "Data integrity" below. The old text-only reply shape follows for reference; use it only if the page cannot be published:
+   Before you call anything "wrong" in words, check the rules under "Data integrity" below. The old text-only reply shape follows for reference; use it only if the page cannot be built:
    ```
    Documentation: <first line of the script: "up to date" or "needs updating: N change(s)">
    - <change list verbatim, if any>
@@ -123,6 +123,7 @@ Before calling a pattern an error, test the premise on the data (for example: ar
 - Delete tabs for deleted tables: rename them `(deleted) …` instead.
 - Change the ERP index Status column.
 - Report shared Moving Parts lines as double counting.
+- Publish the page (or anything from this skill) as a Claude artifact. It is a local HTML file opened in the browser.
 
 ## Access
 

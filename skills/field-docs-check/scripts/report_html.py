@@ -2,7 +2,8 @@
 """Build last_run/report.html: one readable page from the last check.py run. READ-ONLY (reads last_run/*.json, writes one file).
 Inputs: report.json (documentation drift, from check.py), health.json (health.py), integrity.json (integrity.py),
 schema.json and sheet_full.json (the documentation sheet, every column). Missing inputs leave their section out.
-Every record in a finding gets its own "Open in Airtable" link. Publish the file with the Artifact tool."""
+Every record in a finding gets its own "Open in Airtable" link. The page is a LOCAL file opened in the browser;
+never publish it as a Claude artifact (Elliot 2026-09-24)."""
 import json, os, re, sys, html, datetime as dt
 from collections import Counter, defaultdict
 from fdc_env import OUT
@@ -193,10 +194,13 @@ othersec = f"<div class=\"box\"><ul class=\"plain\">{''.join(other)}</ul></div>"
 cnt = Counter(f['sev'] for f in (I or {}).get('findings', []))
 gen = dt.datetime.now().strftime('%Y-%m-%d %H:%M')
 CSS = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'report.css')).read()
-page = f"""<title>{E(BASE_NAME)} Data Review</title>
+page = f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{E(BASE_NAME)} Data Review</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>{CSS}</style>
+</head><body>
 <div class="wrap">
 <header>
  <div class="eyebrow">Airtable {E(BASE_NAME)} · {E(BASE)} · built {E(gen)}</div>
@@ -223,6 +227,7 @@ page = f"""<title>{E(BASE_NAME)} Data Review</title>
  <p><b>Rules this report follows.</b> Moving Parts lines are reusable "part x quantity" lines: many work orders share one line when each used that part, and each WO's parts cost is correct. Shared lines are never flagged. Dual-role people (tech and staff) are not flagged for a visit Type that differs from their role. Cases in <code>known.json</code> keep their review note.</p>
  <p>Built by field-docs-check (check.py → integrity.py → report_html.py) from last_run/*.json. Nothing here was written to Airtable or the sheets; each fix is an Airtable write that needs a yes.</p>
 </footer>
-</div>"""
+</div>
+</body></html>"""
 open(os.path.join(OUT, 'report.html'), 'w').write(page.replace(' — ', ' - ').replace('—', '-'))
 print(f"HTML page: {os.path.join(OUT, 'report.html')}  ({cnt['wrong']} wrong / {cnt['check']} check / {cnt['tidy']} tidy; {nchanges} doc changes; {nstale} stale Health cells; {nmiss} fields without a Health cell; {nmis} misplaced)")
